@@ -1,0 +1,178 @@
+====================================================
+  VERITAS IMG File Format Specifications by Ender 
+====================================================
+
+Disclaimer
+----------
+The author of this document is in no way affiliated with Veritas or Symantec.
+The information presented in this document was obtained by careful analysis 
+of the data. The author will not be held responsible for any damage that may 
+occur to your computer, data, pets and/or relationships that may arise through 
+the use of this document.
+
+
+Intro
+-----
+Veritas is Symantec's tape backup utility.
+
+Prior to extracting files from a DLT, you must first extract the DLT's catalog.
+This catalog is the directory into the DLT's contents, which is the actual file 
+structure. In this way the catalog can be thought of as the file system of a DLT.  
+If the catalog is damaged, the files it points to will be irretrievable, just as
+a damaged FAT wil ruin your day especially if it occurs on your XXX folder.
+
+During the cataloging process, Veritas generates catalog files and stores them on
+the user's hard disk, usually in "C:\Program Files\VERITAS\Backup Exec\NT\Catalogs".
+
+The catalog file name looks like a GUID and comes in pairs, one with the extension 
+.IMG and the other .FH.
+
+There was a need to programatically grab the file structure of a DLT tape and my 
+first idea was to communicate directly via SCSI with the backup unit. I realized that 
+figuring this out would take quite some time, and after a bit of Googling I was turned 
+to the command-line CATDUMP utility provided by Veritas themselves.
+
+It worked (most of the time), but I wanted more control over the catalog dumping 
+process, and CATDUMP occasionally would crash (on some PCs?) for some unknown reason.
+
+Using CATDUMP's output as a sample for comparison I was able to figure out what most 
+values meant.
+
+Please note that this file format spec is for catalog version 4.5 or Veritas 9.x (?)
+If there are any inaccuracies with my derscription above or the file format below, please 
+tell me though saintender dot geo at yahoo dot com.
+
+===================================================================================================
+                                         IMG file format
+===================================================================================================
+
+===================================================================================================
+ HEADER
+===================================================================================================
+ Description  :  Stores offsets and other summary information
+ Starts       :  0x0
+ Ends         :  ?
+ Contains     :  the following
+ 
+===================================================================================================
+Offset    Name            Size          Use / Description / Values
+---------------------------------------------------------------------------------------------------
+ 0x000    header          32 bytes      Identifier = "VERITAS SOFTWARE - CATALOG FILE\0"
+ 0x020    VersionHigh     QWORD         Major Version ex. 4.xx stored in ASCII (4.xx = 34 00 00 00 00 00 00 00)
+ 0x024    VersionLow      QWORD         Minor Version ex. x.50 stored in ASCII (x.50 = 35 00 00 00 00 00 00 00)
+ 0x028    ImageCount      DWORD         Number of backup images
+ 0x03A                    DWORD         = 0x00        
+
+ 0x030    ?               DWORD
+ 0x034    ?               DWORD
+ 0x038    ?               DWORD
+ 0x03C    ?               DWORD
+ 0x040    ?               DWORD
+ 0x044    ?               DWORD
+ 0x048    ?               DWORD
+ 0x04C    ?               DWORD
+ 
+ 0x050    StringStart     DWORD         Relative Offset to STRINGS SECTION + 8
+
+ 0x054    ?               DWORD
+ 0x058    ?               DWORD
+ 0x05C    ?               DWORD
+
+ 0x060    SetNumber       DWORD         Backup Set Number 
+ 0x064    DateTime        DWORD         Backup Date and Time 
+                                         Stored in the format: yyyyyyy mmmm ddddd hhhhh mmmmmm sssss
+ 0x068    SetType         DWORD         Backup Set Type 
+                                         Valid values: (anything else is undefined)
+			                          6 = Working set
+                                         5 = Daily 
+			                          4 = Full
+                                         3 = Incremental
+                                         2 = Differential
+                                         1 = Copy
+ 0x06C    ?               DWORD
+ 0x070    ?               DWORD
+ 0x074    ?               DWORD
+ 0x078    ?               DWORD
+
+ 0x07C    DirCount        DWORD         Total Number of folders
+ 0x080    FileCount       DWORD         Total Number of Files
+ 0x088    TotalBytes      QWORD         Total Number of Bytes 
+
+ 0x090    Corrupt         DWORD         Number of Corrupt ?
+ 0x094    inUse           DWORD         Number of In Use ?
+ 0x???    Status                        Backup Status
+                                         UNICODE,
+
+ 0x0CC    MFGUID          16 bytes      Media Family GUID / GUID*
+ 0x0DC    FamilyID        DWORD         Family Id
+
+
+
+===================================================================================================
+ STRINGS SECTION
+===================================================================================================
+ Description  :  Stores the strings for various items
+ Starts       :  0x50 + StringStart - 8
+ Ends         :  After reading last string ?
+ Contains     :  the following
+
+===================================================================================================
+Offset    Name            Size          Use / Description / Values
+---------------------------------------------------------------------------------------------------
+ 0x000    SetName         Variable      Null-terminated Unicode string
+ 0x???    Unknown**       Variable      Null-terminated Unicode string
+ 0x???    UserName        Variable      Null-terminated Unicode string
+ 0x???    DeviceName      Variable      Null-terminated Unicode string
+ 0x???    VolumeName      Variable      Null-terminated Unicode string
+ 0x???    MachineName     Variable      Null-terminated Unicode string
+ 0x???    EngineName      Variable      Null-terminated Unicode string
+
+
+
+===================================================================================================
+ CAT BE FRAGMENT
+===================================================================================================
+ Description  :  Stores some information related to the DLT?
+ Starts       :  ?
+ Ends         :  EOF
+ Contains     :  the following
+
+===================================================================================================
+Offset    Name            Size          Use / Description / Values
+---------------------------------------------------------------------------------------------------
+0x???     SeqNo                         Media Sequence No  : 1
+0x???     Side                          Media Side         : 1
+0x???     Version                       Media Version      : 0
+0x???     GUID            16 bytes      Media GUID* 
+0x???     FamilyName      Variable      Media Family Name / Null-terminated Unicode string / Media created 8/1/2005 2:53:17 PM
+0x???     Label           Variable      Cartridge Label / Null-terminated Unicode string / DLT000002
+
+
+
+=================================================
+ Notes
+=================================================
+
+* Reading GUIDs
+---------------
+
+The first 6 bytes are stored in reversed order, and the last 10 bytes
+are stored sequentially..
+
+ e.g. :  {08F2B1D2-104A-42C7-9288-A449802121C2}
+
+ 0x0CC D2 B1 F2 08 (Reversed)
+ 0x0D0 4A 10       (Reversed)
+ 0x0D2 42 C7
+ 0x0D4 92 88
+ 0x0D6 A4 49 80 21 21 C2
+
+
+** Unknown String
+-----------------
+
+I'm not sure if this is really an unknown string. The CATDUMP utility doesn't display
+a string item with a blank value that might correspond to this location. I assume this is a missing string
+because my string-reading routine is written to terminate at the first double-null.
+However, following the SetName string is another double-null that I don't think belongs to SetName.
+In order to keep the logic of the routine I assume it is aanother string of zero length.

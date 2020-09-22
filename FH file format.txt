@@ -1,0 +1,322 @@
+========================================
+    Veritas .FH File Format by Ender
+========================================
+
+The .FH file stores the directory and file information of a DLT backup.
+There are four sections, and they appear in this order:
+
+-BOF-
+[HEADER]
+[ATTRIBUTES SECTION]
+[DIRECTORY SECTION]
+[FILES SECTION]
+-EOF-
+
+===================================================================================================
+ HEADER
+===================================================================================================
+ Description  :  Stores some information including offsets to the 3 data sections
+ Starts       :  0x0
+ Ends         :  infoEntryStart?
+ Contains     :  the following
+
+===================================================================================================
+Offset    Name            Size          Use / Description / Values
+---------------------------------------------------------------------------------------------------
+ 0x00     header          32 bytes      Identifier = "VERITAS SOFTWARE - CATALOG FILE\0"
+ 0x20     VersionHigh     QWORD         Major Version ex. 4.xx stored in ASCII (4.xx = 34 00 00 00 00 00 00 00)
+ 0x28     VersionLow      QWORD         Minor Version ex. x.50 stored in ASCII (x.50 = 35 00 00 00 00 00 00 00)
+ 0x30     ?               QWORD         Always = 0x00 ?
+ 0x38     ?               DWORD         Always = "P" (0x50)?
+ 0x3C     ?               DWORD         Always = 0x01 
+ 0x40     ?               DWORD         Always = "P" (0x50)?
+ 0x44     ?               DWORD         Always = "P" (0x50)?
+ 0x48     ?               DWORD          
+                                        = 5C 34 00 00 
+                                        = 12 33 00 00
+ 0x4C     ?               DWORD          
+                                        = 74 42 00 00 
+                                        = 2D 98 00 00
+                                        
+ 0x50     ?               16 bytes      Always = 88 00 00 00 02 00 00 00 01 00 00 00 0E 00 00 00 ?
+ 0x60     ?               DWORD         03 00 00 00
+ 0x64     ?               DWORD         Mirror of 0x48
+ 0x68     ?               DWORD         Mirror of 0x4C
+ 0x6C     ?               DWORD         Always = 0x01 ?
+
+ --- is it this? --
+ 
+ 0x70     ?               DWORD          
+                                        = 01 F0 00 10 = 268496897 
+                                        = 11 70 00 10 = 268464145
+ ---- or this? ----
+ 
+ 0x70     ?               WORD          
+                                        = 01 F0 = 61441 
+                                        = 11 70 = 28689
+ 0x72     ?               WORD          = 00 10 = 4096
+ 
+ ------------------
+ 
+ 0x74     ?               DWORD         Always = 0x00      
+ 0x78     attrEntryStart  QWORD         Offset to ATTRIBUTES SECTION from BOF (Usually 0xD8)
+ 0x80     attrEntryLength QWORD         Size of ATTRIBUTES SECTION
+ 0x88     dirEntryStart   QWORD         Offset to DIRECTORY SECTION from BOF 
+ 0x90     dirEntryLength  QWORD         Size of DIRECTORY SECTION 
+ 0x98     fileEntryStart  QWORD         Offset to FILES SECTION from BOF 
+ 0xA0     fileEntryLength QWORD         Size of FILES SECTION 
+ 0xA8     TotalBytes      QWORD         Total number of bytes in DLT Backup
+ 0xB0     DirCount        QWORD         Total number of Dir Records
+ 0xB8     FileCount       QWORD         Total number of File Records
+ 0xC0     ?               QWORD         
+                                        = 00 00 00 00 00 00 00 00 
+                                        = 01 00 00 00 00 00 00 00
+ 0xC8     ?               QWORD         
+                                        = 01 00 00 00 00 00 00 00 
+                                        = 00 00 00 00 00 00 00 00
+ 0xD0     ?               QWORD         Unused? 
+                                        = 00 00 00 00 00 00 00 00 
+---------------------------------------------------------------------------------------------------
+
+
+
+
+
+
+===================================================================================================
+ ATTRIBUTES SECTION
+===================================================================================================
+ Description  :  Stores dates and attributes of all files and folders.
+ Starts       :  attrEntryStart
+ Ends         :  dirEntryStart
+ Contains     :  Attr Record repeated DirCount + FileCount times
+
+===================================================================================================
+ Attr Record
+===================================================================================================
+Offset    Name          Size            Use / Description / Values
+---------------------------------------------------------------------------------------------------
+ 0x00     unknown1      QWORD
+ 0x04     unknown2      QWORD
+ 0x08     Date/Time     QWORD           See below
+ 0x0C     Attribute 1   QWORD
+ 0x10     Attribute 2   QWORD
+---------------------------------------------------------------------------------------------------
+
+The date/time is stored as follows:
+
+-------------------
+Upper DWORD - Date
+-------------------
+YYYY YYYM MMMD DDDD 
+
+=====================================
+Position         Range        Value
+=====================================
+lower  5 bits    0 - 31       Days 
+middle 4 bits    0 - 15       Months 
+upper  7 bits    0 - 127      Years* 
+=====================================
+
+*The years value is added to 1980 to give an effective range of 1980-2107
+
+-------------------
+Lower DWORD - Time
+-------------------
+HHHH HMMM MMMS SSSS
+    
+=====================================
+Position         Range        Value
+=====================================
+lower  5 bits    0 - 31       Seconds* 
+middle 6 bits    0 - 63       Minutes
+upper  5 bits    0 - 31       Hours 
+=====================================
+
+* The seconds value is multipled by 2 effective range of 0-62 
+  This also gives the seconds a resolution of 2 seconds.
+  It cannot store time in odd-numbered seconds i.e. 1,3,5... 
+
+
+===================================================================================================
+ DIRECTORY SECTION
+===================================================================================================
+ Description  :  Stores folder names and heirarchy
+ Starts       :  dirEntryStart
+ Ends         :  fileEntryStart
+ Contains     :  Dir Record repeated DirCount times
+
+===================================================================================================
+ Dir Record
+===================================================================================================
+Offset    Name          Size            Use / Description / Values
+---------------------------------------------------------------------------------------------------
+ 0x00     RecType       DWORD           Record type descriptor = 2
+ 0x02     Size          DWORD           Size of this record (including header) 
+ 0x04     Unknown1      QWORD           Unknown value
+ 0x08     Fileno        QWORD           File order number
+ 0x0C     Unknown3      QWORD           Unknown value
+ 0x10     Depth         DWORD           Depth of folder
+ 0x12     Dirname       Size - 0x12     Folder name in unicode
+---------------------------------------------------------------------------------------------------
+
+The Veritas catalog stores folder information hierarchically. Child folders will always 
+come after parent folders.
+
+The Depth value specifies the relationship of the folder to the previous one. 
+
+For example, the Dir records produce a sequence or reocrds with these Depth and names
+
+----------------
+ Depth  Name
+----------------
+  0     Root
+  1     Folder1
+  2     Folder2
+  3     Folder3
+  3     Folder4
+  4     Folder5
+  3     Folder6
+  1     Folder7
+  1     Folder8
+  2     Folder9
+  3     Folder10
+  2     Folder11
+  2     Folder12
+-----------------
+
+If we replace Depth with an equal number of dots:
+
+Root
+.Folder1
+..Folder2
+...Folder3
+...Folder4
+....Folder5
+...Folder6
+.Folder7
+.Folder8
+..Folder9
+...Folder10
+..Folder11
+..Folder12
+
+In a treeview, it would look like this:
+
+Root
+ |
+ +-Folder1 
+ |  |
+ |  +-Folder2
+ |     |
+ |     +-Folder3
+ |     |
+ |     +-Folder4
+ |     |  |
+ |     |  +Folder5
+ |     | 
+ |     +-Folder6
+ |
+ +-Folder7
+ |
+ +-Folder8
+    |
+    +-Folder9
+    |  |     
+    |  +-Folder10
+    |
+    +-Folder11
+    |
+    +-Folder12
+
+===================================================================================================
+ DIRECTORY SECTION
+===================================================================================================
+ Description  :  Files
+ Starts       :  fileEntryStart
+ Ends         :  EOF
+ Contains     :  File Record repeated FileCount times
+
+===================================================================================================
+ File Record
+===================================================================================================
+Offset    Name        Size           Use / Description / Values
+---------------------------------------------------------------------------------------------------
+ 0x00     RecType     DWORD           Record type descriptor 
+                                         1 = small file
+                                         2 = large file
+                                         4 = empty file?
+
+ 0x02     Size        DWORD          Size of this record
+ 0x04     Unknown1    QWORD          Unknown value
+ 0x08     Fileno      QWORD          File ordering number
+
+if(RecType==1)
+
+ 0x0C     Filesize    WORD          Size of file (2 bytes)
+ 0X0E     Filename    Size - 0x12    Filename in unicode
+
+if(RecType==2)
+
+ 0x0C     Filesize    DWORD          Size of file (4 bytes)
+ Ox10     Filename    Size - 0x12    Filename in unicode
+
+if(RecType==4)
+
+ 0x0C     Filename    Size - 0x12    Filename in unicode
+ 
+-----------------------------------------------------------------------------------------------------
+
+
+Files are linked to respective folders using the Fileno value.
+Files belong to Folders with the nearest Filenos less than the files'.
+
+
+For example:
+
+Folders data:                        Files data:          
+                                                   
+--------------------------------      ---------------------      
+  FileNo   Depth      Name             FileNo    Name          
+--------------------------------      ---------------------      
+    0       0         Root               3       File1.txt         
+    1       1         Folder1            4       File2.txt         
+    2       2         Folder2            5       File3.txt     
+    6       1         Folder3            7       File4.txt         
+    9       2         Folder4            8       File5.txt         
+    10      2         Folder5            11      File6.txt         
+--------------------------------      ---------------------      
+                                 
+===========================================================
+  File structure                     FileNo     
+===========================================================
+Root                                   0
+ |
+ +--Folder1                            1
+ |   |
+ |   +--Folder2                        2      
+ |       |
+ |       +--File1.txt                  3
+ |       |
+ |       +--File2.txt                  4
+ |       |
+ |       +--File3.txt                  5
+ |
+ +--Folder3                            6
+     |
+     +--File4.txt                      7
+     |
+     +--File5.txt                      8
+     |
+     +--Folder4                        9
+         |
+         +-Folder5                     10
+            |
+            +--File6.txt               11
+  
+============================================================
+
+
+
+
+    

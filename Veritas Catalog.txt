@@ -1,0 +1,59 @@
+==================================================
+  VERITAS IMG File Format Specifications by Ender 
+====================================================
+
+Disclaimer
+----------
+The author of this document is in no way affiliated with Veritas or Symantec.
+The information presented in this document was obtained by careful analysis 
+of the data. Terms used in this document are of the author's own choice. The 
+author will not be held responsible for any damage that may occur to your 
+computer, data, pets and/or relationships that may arise through the use of 
+this document.
+
+
+Intro
+-----
+Veritas is Symantec's tape backup utility.
+
+Prior to extracting files from a DLT, you must first extract the DLT's catalog.
+This catalog is the directory into the DLT's contents, which is the actual file 
+structure. In this way the catalog can be thought of as the file system of a DLT.  
+If the catalog is damaged, the files it points to will be irretrievable, just as
+a damaged FAT wil ruin your day especially if it occurs on your XXX folder.
+
+During the cataloging process, Veritas generates catalog files and stores them on
+the user's hard disk, usually in "C:\Program Files\VERITAS\Backup Exec\NT\Catalogs".
+
+The catalog file name looks like a GUID and comes in pairs, one with the extension 
+.IMG and the other .FH.
+
+There was a need to programatically grab the file structure of a DLT tape and my 
+first idea was to communicate directly via SCSI with the backup unit. I realized that 
+figuring this out would take quite some time, and after a bit of Googling I was turned 
+to the command-line CATDUMP utility provided by Veritas themselves.
+
+It worked (most of the time), but I wanted more control over the catalog dumping 
+process, and CATDUMP occasionally would crash (on some PCs?) for some unknown reason.
+
+Using CATDUMP's output as a sample for comparison I was able to figure out what most 
+values meant.
+
+Please note that this file format spec is for catalog version 4.5 or Veritas 9.x (?)
+If there are any inaccuracies with my derscription above or the file format below, please 
+tell me though saintender dot geo at yahoo dot com.
+
+============================== 
+ PRIMER
+============================== 
+The following terms are used in the document
+
+  WORD     16-bit unsigned 
+  DWORD    32-bit unsigned 
+  QWORD    64-bit unsigned 
+ 
+ 
+==============================
+  File Format Specifications
+==============================
+See IMG File Format.txt and FH File Format.txt
